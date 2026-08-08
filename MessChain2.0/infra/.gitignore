@@ -1,0 +1,2 @@
+# Ignore node-key containing validator private keys
+besu/node-key

@@ -1,0 +1,15 @@
+# Besu node configuration for QBFT private network
+# NOTE: Tighten host-allowlist and cors-origins further in production
+genesis-file="/config/genesis.json"
+network-id=1337
+rpc-http-enabled=true
+rpc-http-host="0.0.0.0"
+rpc-http-port=8545
+rpc-http-api=["ETH","NET","QBFT","WEB3"]
+rpc-ws-enabled=true
+host-allowlist=["localhost","127.0.0.1","backend"]
+rpc-http-cors-origins=["http://localhost:3000","http://localhost:5173"]
+min-gas-price=0
+node-private-key-file="/config/key"
+sync-min-peers=0
+
