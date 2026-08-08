@@ -1,17 +1,18 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { GlassCard, PrimaryButton, SectionTitle, SkeletonBlock, EmptyState, ErrorState } from '../../components';
-import { NetworkContext } from '../../context/NetworkContext';
+import { useUiState } from '../../context/UiStateContext';
 import { getMessChanges, approveMessChange, rejectMessChange, MessChangeRequest } from '../../api/admin';
-import { palette } from '../../theme';
+import { useThemePalette } from '../../context/ThemeContext';
 
 export default function MessChangesScreen() {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   const [requests, setRequests] = useState<MessChangeRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  const networkContext = useContext(NetworkContext);
-  const { processing, launchProcessing } = networkContext || { processing: null, launchProcessing: (id: string, fn: any) => fn() };
+  const { processing, launchProcessing } = useUiState();
 
   const fetchRequests = async () => {
     setLoading(true);
@@ -48,7 +49,7 @@ export default function MessChangesScreen() {
   if (loading) {
     return (
       <View>
-        <SectionTitle eyebrow="Admin Console" title="Mess Change Requests" />
+        <SectionTitle eyebrow="" title="Mess Change Requests" />
         {[1, 2].map((i) => (
           <GlassCard key={i} style={{ marginBottom: 12 }}>
             <SkeletonBlock height={18} width="60%" />
@@ -63,7 +64,7 @@ export default function MessChangesScreen() {
   if (error) {
     return (
       <View>
-        <SectionTitle eyebrow="Admin Console" title="Mess Change Requests" />
+        <SectionTitle eyebrow="" title="Mess Change Requests" />
         <ErrorState message={error} onRetry={fetchRequests} />
       </View>
     );
@@ -71,7 +72,7 @@ export default function MessChangesScreen() {
 
   return (
     <View>
-      <SectionTitle eyebrow="Admin Console" title="Mess Change Requests" subtitle={`Pending approval: ${requests.length}`} />
+      <SectionTitle eyebrow="" title="Mess Change Requests" subtitle={`Pending approval: ${requests.length}`} />
       {requests.length === 0 ? (
         <EmptyState icon="repeat" title="No Pending Requests" message="There are no pending mess change requests to review." />
       ) : (
@@ -116,7 +117,7 @@ export default function MessChangesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   cardTitle: { color: palette.text, fontSize: 16, fontWeight: '800', marginBottom: 10 },
   metaRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   metaBlock: { flex: 1, padding: 12, borderRadius: 14, backgroundColor: 'rgba(255,255,255,0.04)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.06)' },

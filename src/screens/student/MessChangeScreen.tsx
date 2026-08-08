@@ -1,19 +1,20 @@
-import React, { useState, useEffect, useContext } from 'react';
+import React, { useState, useEffect } from 'react';
 import { View, Text, Pressable, StyleSheet, Alert } from 'react-native';
 import { GlassCard, PrimaryButton, SectionTitle, SkeletonBlock } from '../../components';
-import { NetworkContext } from '../../context/NetworkContext';
-import { getPublicMesses, PublicMess } from '../../api/staff';
+import { useUiState } from '../../context/UiStateContext';
+import { getPublicMesses, PublicMess } from '../../api/public';
 import { requestMessChange, getStudentProfile } from '../../api/student';
-import { palette } from '../../theme';
+import { useThemePalette } from '../../context/ThemeContext';
 
 export default function MessChangeScreen() {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   const [messes, setMesses] = useState<PublicMess[]>([]);
   const [currentMessId, setCurrentMessId] = useState<string | null>(null);
   const [selectedMessId, setSelectedMessId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
-  const networkContext = useContext(NetworkContext);
-  const { processing, launchProcessing } = networkContext || { processing: null, launchProcessing: (id: string, fn: any) => fn() };
+  const { processing, launchProcessing } = useUiState();
 
   useEffect(() => {
     Promise.all([
@@ -48,7 +49,7 @@ export default function MessChangeScreen() {
   if (loading) {
     return (
       <View>
-        <SectionTitle eyebrow="Student Workspace" title="Request Mess Change" />
+        <SectionTitle eyebrow="" title="Request Mess Change" />
         <GlassCard>
           <SkeletonBlock height={20} width="60%" />
           <View style={{ height: 12 }} />
@@ -62,7 +63,7 @@ export default function MessChangeScreen() {
 
   return (
     <View>
-      <SectionTitle eyebrow="Student Workspace" title="Request Mess Change" subtitle="Select a new dining hall to transfer your subscription." />
+      <SectionTitle eyebrow="" title="Request Mess Change" subtitle="Select a new dining hall to transfer your subscription." />
       <GlassCard>
         <Text style={styles.pickerLabel}>Choose Target Mess</Text>
         <View style={styles.messList}>
@@ -96,7 +97,7 @@ export default function MessChangeScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   pickerLabel: { color: palette.text, fontSize: 14, fontWeight: '800', marginBottom: 12 },
   messList: { gap: 10, marginBottom: 16 },
   messCard: { padding: 14, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },

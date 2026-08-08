@@ -2,9 +2,11 @@ import React, { useState, useEffect } from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { GlassCard, SectionTitle, SkeletonBlock, EmptyState, ErrorState } from '../../components';
 import { getStudents, StudentEntry } from '../../api/admin';
-import { palette } from '../../theme';
+import { useThemePalette } from '../../context/ThemeContext';
 
 export default function StudentRosterScreen() {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   const [students, setStudents] = useState<StudentEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -82,7 +84,7 @@ export default function StudentRosterScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 },
   studentName: { color: palette.text, fontSize: 16, fontWeight: '800' },
   rollBadge: { color: palette.emerald, fontWeight: '800', fontSize: 13, backgroundColor: 'rgba(16,185,129,0.12)', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 999 },

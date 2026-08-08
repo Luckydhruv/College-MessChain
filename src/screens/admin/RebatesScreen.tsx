@@ -1,64 +1,101 @@
-import React, { useContext } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { GlassCard, LockClockIcon, Pill, PrimaryButton, ReceiptBadge, SectionTitle } from '../../components';
+import React from 'react';
+import { View, Text, StyleSheet, Alert } from 'react-native';
+import { GlassCard, Pill, PrimaryButton, ReceiptBadge, SectionTitle, SkeletonBlock } from '../../components';
+import { ErrorState } from '../../components/ErrorState';
+import { EmptyState } from '../../components/EmptyState';
 import { useRebates } from '../../hooks/useRebates';
-import { NetworkContext } from '../../context/NetworkContext';
-import { palette } from '../../theme';
+import { useUiState } from '../../context/UiStateContext';
+import { useThemePalette } from '../../context/ThemeContext';
 
 export default function RebatesScreen() {
-  const { rebates, countdownText, triggerApprove, triggerDeny } = useRebates();
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+  const { rebates, loading, error, refetch, triggerApprove, triggerDeny } = useRebates();
+  const { processing } = useUiState();
 
-  const networkContext = useContext(NetworkContext);
-  if (!networkContext) {
-    throw new Error('RebatesScreen must be used within a NetworkProvider');
+  if (loading) {
+    return (
+      <View>
+        <SectionTitle eyebrow="" title="Rebate Queue" />
+        {[1, 2, 3].map(i => (
+          <GlassCard key={i} style={{ marginBottom: 12 }}>
+            <SkeletonBlock height={18} width="62%" />
+            <View style={{ height: 12 }} />
+            <SkeletonBlock height={14} width="92%" />
+          </GlassCard>
+        ))}
+      </View>
+    );
   }
-  const { processing } = networkContext;
+
+  if (error) {
+    return (
+      <View>
+        <SectionTitle eyebrow="" title="Rebate Queue" />
+        <ErrorState message={error} onRetry={refetch} />
+      </View>
+    );
+  }
+
+  // Filter to show only pending rebates by default
+  const pendingRebates = rebates.filter(r => r.status === 'Pending');
+
+  if (pendingRebates.length === 0) {
+    return (
+      <View>
+        <SectionTitle eyebrow="" title="Rebate Queue" />
+        <EmptyState message="No pending rebate requests" icon="credit-card" />
+      </View>
+    );
+  }
 
   return (
     <View>
-      <SectionTitle eyebrow="" title="Rebates ledger" />
-      {rebates.map((claim) => (
+      <SectionTitle eyebrow="" title="Rebate Queue" subtitle={`${pendingRebates.length} pending request${pendingRebates.length === 1 ? '' : 's'}`} />
+      {pendingRebates.map((claim) => (
         <GlassCard key={claim.id} style={{ marginBottom: 12 }}>
           <View style={styles.cardHeaderRow}>
-            <View>
-              <Text style={styles.listTitle}>
-                {claim.student ? `${claim.student.slice(0, 8)}...${claim.student.slice(-6)}` : 'Unknown Student'}
-              </Text>
-              {/* CHANGED: Provided fallback text value string for on-chain entries lacking context reasons */}
-              <Text style={styles.listBody}>{claim.reason || 'Leave of absence / Mess rebate claim request'}</Text>
-            </View>
-            <Text style={styles.amountText}>{claim.amount} tokens</Text>
-          </View>
-          <View style={styles.lockStrip}>
-            <LockClockIcon />
             <View style={{ flex: 1 }}>
-              <Text style={styles.lockStripTitle}>Time lock active</Text>
-              <Text style={styles.lockStripBody}>
-                {claim.lock || 'Standard Protocol'} • receipt #{claim.id} • {countdownText}
+              <Text style={styles.listTitle}>
+                {claim.student.startsWith('0x')
+                  ? `${claim.student.slice(0, 8)}...${claim.student.slice(-6)}`
+                  : claim.student}
+              </Text>
+              <Text style={styles.listBody}>
+                {claim.fromDate} → {claim.toDate} ({claim.days} day{claim.days === 1 ? '' : 's'})
               </Text>
             </View>
+            <Pill label={claim.status} tone={claim.status === 'Approved' ? 'emerald' : claim.status === 'Rejected' ? 'red' : 'amber'} icon="clock" />
           </View>
           <View style={styles.hashRow}>
-            {/* Added defensive guard checks to protect string slice evaluations against undefined structures */}
-            <ReceiptBadge
-              label="Settlement hash"
-              value={claim.hash ? `${claim.hash.slice(0, 10)}...${claim.hash.slice(-8)}` : 'Pending Blockchain Tx'}
-            />
-            <Pill label={claim.status || 'Unprocessed'} tone="indigo" icon="shield" />
+            <ReceiptBadge label="Rebate ID" value={`#${claim.id}`} />
+            {claim.requestedAt ? <ReceiptBadge label="Requested" value={claim.requestedAt} /> : null}
           </View>
           <View style={styles.inlineActions}>
             <PrimaryButton
               label="Approve"
               icon="check"
               tone="emerald"
-              onPress={() => triggerApprove(claim.id)}
+              onPress={async () => {
+                try {
+                  await triggerApprove(claim.id);
+                } catch (err: any) {
+                  Alert.alert('Approval Failed', err.message || 'Failed to approve rebate.');
+                }
+              }}
               loading={processing === `rebate-${claim.id}`}
             />
             <PrimaryButton
-              label="Deny"
+              label="Reject"
               icon="x"
               tone="red"
-              onPress={() => triggerDeny(claim.id)}
+              onPress={async () => {
+                try {
+                  await triggerDeny(claim.id);
+                } catch (err: any) {
+                  Alert.alert('Rejection Failed', err.message || 'Failed to reject rebate.');
+                }
+              }}
               loading={processing === `deny-${claim.id}`}
               danger
             />
@@ -69,14 +106,10 @@ export default function RebatesScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   cardHeaderRow: { flexDirection: 'row', flexWrap: 'wrap', alignItems: 'flex-start', justifyContent: 'space-between', gap: 10, marginBottom: 10 },
   listTitle: { color: palette.text, fontSize: 16, fontWeight: '800' },
   listBody: { color: palette.muted, fontSize: 13, lineHeight: 19, marginTop: 4 },
-  amountText: { color: palette.text, fontSize: 24, fontWeight: '900' },
-  lockStrip: { flexDirection: 'row', alignItems: 'center', gap: 12, padding: 14, borderRadius: 20, backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.16)', marginTop: 6 },
-  lockStripTitle: { color: palette.text, fontSize: 15, fontWeight: '800' },
-  lockStripBody: { color: palette.muted, fontSize: 12.5, marginTop: 4 },
-  hashRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', gap: 10, marginTop: 14 },
+  hashRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 10, marginTop: 14, flexWrap: 'wrap' },
   inlineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 10, marginTop: 14, flexWrap: 'wrap' },
 });

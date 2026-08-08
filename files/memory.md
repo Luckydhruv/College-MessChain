@@ -142,3 +142,26 @@ Append one entry per working session:
 - Real mess IDs must always be Ethereum addresses (`0x...`), accessible directly via `userData.messId`.
 
 **Status:** Codebase is now 100% aligned with the backend specification and `/files` source of truth.
+
+---
+
+### 2026-08-08 — Design Upgrade, Runtime Server Configuration & Student Registration
+
+**Did:**
+1. **Dynamic Network & Server IP Persistence**:
+   - Integrated `expo-secure-store` helpers (`getBackendUrl`, `setBackendUrl`, `getDefaultBackendUrl`) with fallback defaults for Android emulators (`10.0.2.2:5000`) and LAN interfaces.
+   - Built `ServerConfigModal.tsx` modal interface with connection health test ping (`GET /api/public/messes`) and instant configuration persistence.
+   - Refactored `baseClient` in `src/api/client.ts` to dynamically fetch the persistent backend URL on every outgoing HTTP request.
+2. **Student Governance & Data Connectivity**:
+   - Refactored `src/api/complaints.ts`, `src/api/feedback.ts`, `src/api/rebates.ts`, and `src/api/student.ts` to connect to real backend endpoints.
+   - Ensured student `messId` Ethereum address is dynamically resolved from the student profile (`/api/student/profile`) or public mess list.
+   - Added date validation and quick-preset helpers in `RequestRebateScreen` (enforcing future date range and 15-day limit per `Rebate.sol`).
+   - Added robust error handling and confirmation alerts for student complaint and feedback submission flows.
+3. **Student Registration Workflow & Screen Routing**:
+   - Created `RegisterScreen.tsx` with dynamic mess selection from `GET /api/public/messes`, form validation, and `handleRegister` in `AuthContext`.
+   - Added toggle between login and registration views in `App.tsx`.
+   - Wired all admin, student, and staff tabs and screen routes (`StudentRosterScreen`, `MintTokensScreen`, `MessChangesScreen`, `RequestRebateScreen`, `MessChangeScreen`, `StaffQrDisplayScreen`).
+   - Verified zero TypeScript compilation errors with `npx tsc --noEmit`.
+
+**Status:** Frontend fully connected, styled with premium theme tokens, and validated end-to-end for production deployment.
+

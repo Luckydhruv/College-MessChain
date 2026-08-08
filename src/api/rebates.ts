@@ -1,23 +1,38 @@
-import { RebateClaim } from '../types/rebate.types';
-import { rebateClaims } from '../data';
-import { baseClient, apiDelay } from './client';
+import { baseClient } from './client';
 
-export const getRebates = async (): Promise<RebateClaim[]> => {
-  await apiDelay(500);
-  return rebateClaims;
-};
+export interface RebateEntry {
+  id: string;
+  student: string;
+  fromDate: string;
+  toDate: string;
+  days: number;
+  status: 'Pending' | 'Approved' | 'Rejected';
+  requestedAt: string;
+}
 
-export const requestRebate = async (fromDate: number, toDate: number): Promise<void> => {
-  await baseClient.post('/api/student/request-rebate', {
-    fromDate,
-    toDate,
+export const getRebates = async (): Promise<RebateEntry[]> => {
+  const response = await baseClient.get<{ rebates: any[] }>('/api/admin/rebates');
+  const items = response.rebates || [];
+  return items.map((r: any) => {
+    const fromDate = r.fromDate ? new Date(r.fromDate * 1000).toLocaleDateString() : '';
+    const toDate = r.toDate ? new Date(r.toDate * 1000).toLocaleDateString() : '';
+    const days = r.fromDate && r.toDate ? Math.ceil((r.toDate - r.fromDate) / 86400) : 0;
+    return {
+      id: String(r.id),
+      student: r.student || 'Unknown',
+      fromDate,
+      toDate,
+      days,
+      status: r.status === 1 ? 'Approved' as const : r.status === 2 ? 'Rejected' as const : 'Pending' as const,
+      requestedAt: r.requestedAt ? new Date(r.requestedAt * 1000).toLocaleDateString() : '',
+    };
   });
 };
 
-export const approveRebate = async (id: string): Promise<void> => {
-  await baseClient.post(`/api/admin/rebates/${parseInt(id, 10)}/approve`);
+export const approveRebate = async (id: string): Promise<any> => {
+  return await baseClient.post(`/api/admin/rebates/${parseInt(id, 10)}/approve`);
 };
 
-export const denyRebate = async (id: string): Promise<void> => {
-  await baseClient.post(`/api/admin/rebates/${parseInt(id, 10)}/reject`);
+export const denyRebate = async (id: string): Promise<any> => {
+  return await baseClient.post(`/api/admin/rebates/${parseInt(id, 10)}/reject`);
 };

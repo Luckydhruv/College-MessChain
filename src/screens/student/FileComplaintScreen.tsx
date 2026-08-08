@@ -1,35 +1,42 @@
-import React, { useState, useContext } from 'react';
-import { View, Text, StyleSheet } from 'react-native';
-import { Feather } from '@expo/vector-icons';
-import { GlassCard, Pill, PrimaryButton, SectionTitle, TextField } from '../../components';
-import { NetworkContext } from '../../context/NetworkContext';
+import React, { useState } from 'react';
+import { View, Text, StyleSheet, Alert } from 'react-native';
+
+import { GlassCard, PrimaryButton, SectionTitle, TextField } from '../../components';
+import { useUiState } from '../../context/UiStateContext';
 import { useComplaints } from '../../hooks/useComplaints';
-import { palette } from '../../theme';
+import { useThemePalette } from '../../context/ThemeContext';
 
 export default function FileComplaintScreen() {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   const [complaintTitle, setComplaintTitle] = useState('');
   const [complaintBody, setComplaintBody] = useState('');
-  const [attachment, setAttachment] = useState('Receipt.png');
 
   const { fileComplaint } = useComplaints();
-
-  const networkContext = useContext(NetworkContext);
-  if (!networkContext) {
-    throw new Error('FileComplaintScreen must be used within a NetworkProvider');
-  }
-  const { processing, launchProcessing } = networkContext;
+  const { processing, launchProcessing } = useUiState();
 
   const handleSubmit = () => {
+    if (!complaintTitle.trim() || !complaintBody.trim()) {
+      Alert.alert('Required Fields', 'Please enter both complaint subject and detailed description.');
+      return;
+    }
+
     launchProcessing('submit-complaint', async () => {
-      await fileComplaint(complaintTitle, complaintBody, attachment);
-      setComplaintTitle('');
-      setComplaintBody('');
+      try {
+        await fileComplaint(complaintTitle.trim(), complaintBody.trim());
+        Alert.alert('Complaint Submitted', 'Your complaint has been submitted and stored on IPFS.');
+        setComplaintTitle('');
+        setComplaintBody('');
+      } catch (err: any) {
+        Alert.alert('Submission Error', err.message || 'Failed to submit complaint. Please check connection.');
+      }
     });
   };
 
   return (
     <View>
-      <SectionTitle eyebrow="Web2 API" title="File a complaint" />
+      <SectionTitle eyebrow="" title="File a Complaint" subtitle="Submit formal complaints to mess administration." />
+
       <GlassCard>
         <TextField
           label="Complaint subject"
@@ -45,14 +52,8 @@ export default function FileComplaintScreen() {
           multiline
           rows={5}
         />
-        <View style={styles.attachCard}>
-          <Feather name="paperclip" size={18} color={palette.text} />
-          <View style={{ flex: 1 }}>
-            <Text style={styles.attachTitle}>Attachment preview</Text>
-            <Text style={styles.attachSub}>
-              {attachment} • characters used {complaintBody.length}/320
-            </Text>
-          </View>
+        <View style={styles.charCount}>
+          <Text style={styles.charCountText}>{complaintBody.length}/320 characters</Text>
         </View>
         <View style={styles.inlineActions}>
           <PrimaryButton
@@ -62,16 +63,14 @@ export default function FileComplaintScreen() {
             onPress={handleSubmit}
             loading={processing === 'submit-complaint'}
           />
-          <Pill label="Draft auto-saved" tone="indigo" icon="save" />
         </View>
       </GlassCard>
     </View>
   );
 }
 
-const styles = StyleSheet.create({
-  attachCard: { marginBottom: 16, padding: 14, borderRadius: 18, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', flexDirection: 'row', alignItems: 'center', gap: 12 },
-  attachTitle: { color: palette.text, fontSize: 13.5, fontWeight: '800' },
-  attachSub: { color: palette.muted, fontSize: 12, marginTop: 3 },
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
+  charCount: { marginBottom: 12 },
+  charCountText: { color: palette.muted, fontSize: 12 },
   inlineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 10, marginTop: 14, flexWrap: 'wrap' },
 });

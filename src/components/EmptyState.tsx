@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { palette } from '../theme';
+import { useThemePalette } from '../context/ThemeContext';
 
 interface EmptyStateProps {
   icon?: keyof typeof Feather.glyphMap;
@@ -14,6 +14,8 @@ export function EmptyState({
   title = 'No records found',
   message = 'There are no pending items or data records available at this time.',
 }: EmptyStateProps) {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.container}>
       <View style={styles.iconWrap}>
@@ -25,7 +27,7 @@ export function EmptyState({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',

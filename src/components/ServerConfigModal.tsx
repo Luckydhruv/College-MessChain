@@ -11,7 +11,7 @@ import {
   Platform,
 } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { palette } from '../theme';
+import { useThemePalette } from '../context/ThemeContext';
 import { getBackendUrl, setBackendUrl, getDefaultBackendUrl } from '../utils/storage';
 
 interface Props {
@@ -20,6 +20,8 @@ interface Props {
 }
 
 export default function ServerConfigModal({ visible, onClose }: Props) {
+  const palette = useThemePalette();
+  const modalStyles = React.useMemo(() => createModalStyles(palette), [palette]);
   const [url, setUrl] = useState('');
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
@@ -181,16 +183,21 @@ export default function ServerConfigModal({ visible, onClose }: Props) {
   );
 }
 
-const modalStyles = StyleSheet.create({
+const createModalStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   overlay: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
   },
   backdrop: {
-    ...StyleSheet.absoluteFillObject,
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
     backgroundColor: 'rgba(0,0,0,0.72)',
   },
+
   card: {
     width: '88%',
     maxWidth: 420,

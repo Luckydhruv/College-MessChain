@@ -1,16 +1,17 @@
-import React, { useState, useContext } from 'react';
+import React, { useState } from 'react';
 import { View, Text, StyleSheet, Alert } from 'react-native';
 import { GlassCard, PrimaryButton, SectionTitle, TextField } from '../../components';
-import { NetworkContext } from '../../context/NetworkContext';
+import { useUiState } from '../../context/UiStateContext';
 import { mintTokens } from '../../api/admin';
-import { palette } from '../../theme';
+import { useThemePalette } from '../../context/ThemeContext';
 
 export default function MintTokensScreen() {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   const [rollNumber, setRollNumber] = useState('');
   const [amountStr, setAmountStr] = useState('');
 
-  const networkContext = useContext(NetworkContext);
-  const { processing, launchProcessing } = networkContext || { processing: null, launchProcessing: (id: string, fn: any) => fn() };
+  const { processing, launchProcessing } = useUiState();
 
   const handleSubmit = () => {
     if (!rollNumber.trim() || !amountStr.trim()) {
@@ -38,7 +39,7 @@ export default function MintTokensScreen() {
 
   return (
     <View>
-      <SectionTitle eyebrow="Admin Console" title="Mint Tokens" subtitle="Issue meal tokens directly to a student wallet by roll number." />
+      <SectionTitle eyebrow="" title="Mint Tokens" subtitle="Issue meal tokens directly to a student wallet by roll number." />
       <GlassCard>
         <TextField
           label="Student Roll Number"
@@ -54,13 +55,13 @@ export default function MintTokensScreen() {
           keyboardType="numeric"
         />
         <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>On-Chain Token Issuance</Text>
+          <Text style={styles.infoTitle}>Token Issuance</Text>
           <Text style={styles.infoBody}>
-            Minting issues ERC20 tokens directly onto the Besu consortium ledger to the student's designated wallet address.
+            Minting issues meal tokens directly to the student's designated wallet address for meal redemptions.
           </Text>
         </View>
         <PrimaryButton
-          label="Mint Tokens to Wallet"
+          label="Mint Tokens"
           icon="plus-circle"
           tone="emerald"
           onPress={handleSubmit}
@@ -71,7 +72,7 @@ export default function MintTokensScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   infoBox: { marginVertical: 14, padding: 14, borderRadius: 18, backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.16)' },
   infoTitle: { color: palette.text, fontSize: 13, fontWeight: '800' },
   infoBody: { color: palette.muted, fontSize: 12, marginTop: 4, lineHeight: 18 },

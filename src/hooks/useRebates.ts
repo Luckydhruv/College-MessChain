@@ -1,62 +1,51 @@
-import { useState, useEffect, useContext } from 'react';
-import { RebateClaim } from '../types/rebate.types';
-import { getRebates, denyRebate } from '../api/rebates';
-import { countdownToText } from '../utils/countdown';
-import { NetworkContext } from '../context/NetworkContext';
+import { useState, useEffect, useCallback } from 'react';
+import { getRebates, RebateEntry, approveRebate, denyRebate } from '../api/rebates';
+import { useUiState } from '../context/UiStateContext';
 
 export function useRebates() {
-  const [rebates, setRebates] = useState<RebateClaim[]>([]);
+  const [rebates, setRebates] = useState<RebateEntry[]>([]);
   const [loading, setLoading] = useState(true);
-  const [countdown, setCountdown] = useState(17418);
+  const [error, setError] = useState<string | null>(null);
+  const { launchProcessing } = useUiState();
 
-  const networkContext = useContext(NetworkContext);
-  if (!networkContext) {
-    throw new Error('useRebates must be used within a NetworkProvider');
-  }
-  const { handleApprove, launchProcessing } = networkContext;
+  const fetchRebates = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getRebates();
+      setRebates(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load rebates');
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let active = true;
-    const fetchRebates = async () => {
-      try {
-        const data = await getRebates();
-        if (active) {
-          setRebates(data);
-          setLoading(false);
-        }
-      } catch (err) {
-        if (active) setLoading(false);
-      }
-    };
     fetchRebates();
-    return () => { active = false; };
-  }, []);
+  }, [fetchRebates]);
 
-  useEffect(() => {
-    const timer = setInterval(() => setCountdown((current) => (current > 0 ? current - 1 : 17418)), 1000);
-    return () => clearInterval(timer);
-  }, []);
-
-  
   const triggerApprove = async (id: string | number) => {
-    handleApprove(String(id));
+    await launchProcessing(`rebate-${id}`, async () => {
+      await approveRebate(String(id));
+      // Refetch after approval to get updated status
+      await fetchRebates();
+    });
   };
 
   const triggerDeny = async (id: string | number) => {
-    launchProcessing(`deny-${id}`, async () => {
+    await launchProcessing(`deny-${id}`, async () => {
       await denyRebate(String(id));
-      
-      setRebates((current) =>
-        current.map((r) => (String(r.id) === String(id) ? { ...r, status: 'Rejected' } : r))
-      );
+      // Refetch after rejection to get updated status
+      await fetchRebates();
     });
   };
 
   return {
     rebates,
     loading,
-    countdown,
-    countdownText: countdownToText(countdown),
+    error,
+    refetch: fetchRebates,
     triggerApprove,
     triggerDeny,
   };

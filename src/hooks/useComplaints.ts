@@ -1,44 +1,37 @@
-import { useState, useEffect } from 'react';
-import { Complaint } from '../types/complaint.types';
-import { getComplaints, submitComplaint, updateComplaintStatus } from '../api/complaints';
+import { useState, useEffect, useCallback } from 'react';
+import { getComplaints, submitComplaint, ComplaintEntry } from '../api/complaints';
 
 export function useComplaints() {
-  const [complaints, setComplaints] = useState<Complaint[]>([]);
+  const [complaints, setComplaints] = useState<ComplaintEntry[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    let active = true;
-    const fetchComplaints = async () => {
-      try {
-        const data = await getComplaints();
-        if (active) {
-          setComplaints(data);
-          setLoading(false);
-        }
-      } catch (err) {
-        if (active) setLoading(false);
-      }
-    };
-    fetchComplaints();
-    return () => { active = false; };
+  const fetchComplaints = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const data = await getComplaints();
+      setComplaints(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load complaints');
+    } finally {
+      setLoading(false);
+    }
   }, []);
 
-  const fileComplaint = async (title: string, body: string, attachment: string) => {
-    await submitComplaint(title, body, attachment);
-  };
+  useEffect(() => {
+    fetchComplaints();
+  }, [fetchComplaints]);
 
-  
-  const resolveComplaint = async (id: string | number, nextStatus: string) => {
-    await updateComplaintStatus(String(id), nextStatus);
-    setComplaints((current) =>
-      current.map((c) => (String(c.id) === String(id) ? { ...c, status: nextStatus } : c))
-    );
+  const fileComplaint = async (title: string, body: string) => {
+    return await submitComplaint(title, body);
   };
 
   return {
     complaints,
     loading,
+    error,
+    refetch: fetchComplaints,
     fileComplaint,
-    resolveComplaint,
   };
 }

@@ -2,7 +2,7 @@ import React, { createContext, useState, useEffect, ReactNode } from 'react';
 import { Role } from '../theme';
 import { AuthSession } from '../types/auth.types';
 import { readStoredSession, writeStoredSession, clearStoredSession } from '../utils/storage';
-import { loginUser } from '../api/auth';
+import { loginUser, registerUser } from '../api/auth';
 
 export interface AuthContextType {
   session: AuthSession | null;
@@ -17,9 +17,17 @@ export interface AuthContextType {
   setLoginError: (error: string) => void;
   screen: string;
   setScreen: (screen: string) => void;
-  handleLogin: () => Promise<void>;
+  handleLogin: (emailOverride?: string, passwordOverride?: string) => Promise<void>;
+  handleRegister: (data: {
+    name: string;
+    email: string;
+    password: string;
+    rollNumber: string;
+    messId: string;
+  }) => Promise<void>;
   handleLogout: () => Promise<void>;
 }
+
 
 const roleHome: Record<Role, string> = {
   admin: 'dashboard',
@@ -27,11 +35,21 @@ const roleHome: Record<Role, string> = {
   staff: 'dashboard',
 };
 
-const demoCredentials: Record<string, { password: string; role: Role }> = {
-  'student@messchain.com': { password: 'student', role: 'student' },
-  'staff@messchain.com': { password: 'staff', role: 'staff' },
-  'admin@messchain.com': { password: 'admin', role: 'admin' },
-};
+/**
+ * Decode a JWT and check if it has expired.
+ * Returns true if valid (not expired), false if expired or unparseable.
+ */
+function isTokenValid(token: string): boolean {
+  try {
+    const parts = token.split('.');
+    if (parts.length !== 3) return false;
+    const payload = JSON.parse(atob(parts[1]));
+    if (!payload.exp) return true; // no expiry claim = treat as valid
+    return payload.exp * 1000 > Date.now();
+  } catch {
+    return false;
+  }
+}
 
 export const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
@@ -42,7 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loginPassword, setLoginPassword] = useState('');
   const [loginError, setLoginError] = useState('');
   const [role, setRole] = useState<Role>('student');
-  const [screen, setScreen] = useState<string>('dashboard');
+  const [screen, setScreen] = useState<string>('qr-scanner');
 
   useEffect(() => {
     setScreen(roleHome[role]);
@@ -55,9 +73,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const storedSession = await readStoredSession();
       if (!mounted) return;
 
-      if (storedSession?.email && storedSession?.role) {
-        setSession(storedSession);
-        setRole(storedSession.role);
+      if (storedSession?.email && storedSession?.role && storedSession?.token) {
+        // Validate JWT expiry before restoring session (Phase 1, item 1.3)
+        if (isTokenValid(storedSession.token)) {
+          setSession(storedSession);
+          setRole(storedSession.role);
+        } else {
+          // Token expired — clear and force re-login
+          await clearStoredSession();
+        }
       }
       setBootstrapping(false);
     };
@@ -66,9 +90,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => { mounted = false; };
   }, []);
 
-  const handleLogin = async () => {
-    const email = loginEmail.trim().toLowerCase();
-    const password = loginPassword.trim();
+  const handleLogin = async (emailOverride?: string, passwordOverride?: string) => {
+    const rawEmail = emailOverride !== undefined ? emailOverride : loginEmail;
+    const rawPassword = passwordOverride !== undefined ? passwordOverride : loginPassword;
+    const email = rawEmail.trim().toLowerCase();
+    const password = rawPassword.trim();
 
     if (!email || !password) {
       setLoginError('Enter both email ID and password.');
@@ -81,24 +107,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      const demoAccount = __DEV__ ? demoCredentials[email] : undefined;
-
-      if (demoAccount && demoAccount.password === password) {
-        const nextSession = {
-          email,
-          role: demoAccount.role,
-          token: `demo-${demoAccount.role}`,
-        };
-
-        await writeStoredSession(nextSession);
-        setSession(nextSession);
-        setRole(demoAccount.role);
-        setScreen(roleHome[demoAccount.role]);
-        setLoginError('');
-        setLoginPassword('');
-        return;
-      }
-
       const response = await loginUser(email, password);
       const nextRole = response.user.role.toLowerCase() as Role;
       const nextSession = {
@@ -118,13 +126,37 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const handleRegister = async (data: {
+    name: string;
+    email: string;
+    password: string;
+    rollNumber: string;
+    messId: string;
+  }) => {
+    const response = await registerUser(data);
+    const user = response.user || {};
+    const nextRole = (user.role ? user.role.toLowerCase() : 'student') as Role;
+    const nextSession = {
+      email: user.email || data.email,
+      role: nextRole,
+      token: response.token,
+    };
+
+    await writeStoredSession(nextSession);
+    setSession(nextSession);
+    setRole(nextRole);
+    setScreen(roleHome[nextRole]);
+    setLoginError('');
+    setLoginPassword('');
+  };
+
   const handleLogout = async () => {
     await clearStoredSession();
     setSession(null);
     setLoginEmail('');
     setLoginPassword('');
     setLoginError('');
-    setScreen('dashboard');
+    setScreen('qr-scanner');
     setRole('student');
   };
 
@@ -144,6 +176,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         screen,
         setScreen,
         handleLogin,
+        handleRegister,
         handleLogout,
       }}
     >

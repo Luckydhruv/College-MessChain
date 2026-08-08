@@ -1,24 +1,25 @@
-import React, { useState, useContext } from 'react';
-import { View, Text, ActivityIndicator, StyleSheet, Alert } from 'react-native';
+import React, { useState, useRef } from 'react';
+import { View, Text, ActivityIndicator, StyleSheet, Alert, Platform } from 'react-native';
 import { CameraType, CameraView, useCameraPermissions } from 'expo-camera';
 import { Feather } from '@expo/vector-icons';
 import { GlassCard, PrimaryButton, SectionTitle } from '../../components';
-import { palette } from '../../theme';
-import { NetworkContext } from '../../context/NetworkContext';
+import { useThemePalette } from '../../context/ThemeContext';
+import { useUiState } from '../../context/UiStateContext';
 import { scanQrCode } from '../../api/student';
 
 export default function QrScannerScreen() {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   const [cameraPermission, requestCameraPermission] = useCameraPermissions();
   const [scannedQr, setScannedQr] = useState<string | null>(null);
-
-  // Consume Network Context state configuration
-  const networkContext = useContext(NetworkContext);
-  const { processing, launchProcessing } = networkContext || { processing: null, launchProcessing: (id: string, fn: any) => fn() };
+  const { processing, launchProcessing } = useUiState();
+  // Debounce lock — prevents duplicate scans while a request is in flight
+  const processingRef = useRef(false);
 
   if (!cameraPermission) {
     return (
       <View>
-        <SectionTitle eyebrow="Web3 RPC" title="QR scanner" subtitle="Loading camera permissions." />
+        <SectionTitle eyebrow="" title="Meal Scanner" subtitle="Loading camera permissions." />
         <GlassCard style={styles.scannerCard}>
           <View style={styles.permissionPanel}>
             <ActivityIndicator size="large" color={palette.emerald} />
@@ -33,16 +34,16 @@ export default function QrScannerScreen() {
     return (
       <View>
         <SectionTitle
-          eyebrow="Web3 RPC"
-          title="QR scanner"
-          subtitle="Camera access is required to scan the student QR code."
+          eyebrow=""
+          title="Meal Scanner"
+          subtitle="Camera access is required to scan the mess QR code."
         />
         <GlassCard style={styles.scannerCard}>
           <View style={styles.permissionPanel}>
             <Feather name="camera" size={28} color={palette.text} />
             <Text style={styles.permissionTitle}>Camera permission needed</Text>
             <Text style={styles.permissionCopy}>
-              Allow the camera so the app can scan QR codes directly on the student page.
+              Allow the camera so the app can scan the mess QR code and claim your daily meal.
             </Text>
             <PrimaryButton
               label="Grant Camera Access"
@@ -57,30 +58,33 @@ export default function QrScannerScreen() {
   }
 
   const handleQrScan = ({ data }: { data: string }) => {
-    if (scannedQr === data) return;
+    // Debounce: ignore if same QR or a request is in flight
+    if (processingRef.current || scannedQr === data) return;
     setScannedQr(data);
+    processingRef.current = true;
 
-    // Added automatic background transaction dispatch on scan event
     launchProcessing('verify-meal', async () => {
       try {
         const response = await scanQrCode(data);
-        Alert.alert("Success", response.message || "Meal verified successfully!");
+        Alert.alert('Meal Claimed', response.message || 'Meal verified successfully!');
       } catch (err: any) {
-        Alert.alert("Verification Failed", err.message || "Failed to parse on-chain block record.");
+        Alert.alert('Verification Result', err.message || 'Failed to verify meal.');
+      } finally {
+        processingRef.current = false;
       }
     });
   };
 
   return (
     <View>
-      <SectionTitle eyebrow="Web3 RPC" title="QR scanner" subtitle="Use the live camera to scan a student QR code." />
+      <SectionTitle eyebrow="" title="Meal Scanner" subtitle="Scan the QR code at the mess counter to claim today's meal." />
       <GlassCard style={styles.scannerCard}>
         <View style={styles.cameraFrame}>
           <CameraView
             style={styles.cameraSurface}
             facing={'back' as CameraType}
             barcodeScannerSettings={{ barcodeTypes: ['qr'] }}
-            onBarcodeScanned={handleQrScan}
+            onBarcodeScanned={processing === 'verify-meal' ? undefined : handleQrScan}
           />
           <View style={styles.scannerReticle}>
             <View style={styles.reticleCornerTopLeft} />
@@ -91,21 +95,20 @@ export default function QrScannerScreen() {
           </View>
           <View style={styles.cameraBottomSheet}>
             <Text style={styles.cameraLabel}>
-              {/* CHANGED: Visually communicate dynamic load processing states via labels */}
-              {processing === 'verify-meal' ? "Processing Timelock Tx..." : "Scanning live session QR"}
+              {processing === 'verify-meal' ? 'Verifying meal claim...' : 'Point at the mess QR code'}
             </Text>
             <Text style={styles.cameraSub}>
-              Point the camera at the code to capture the student session token.
+              The QR code is displayed at the mess counter by staff.
             </Text>
           </View>
         </View>
         <View style={styles.inlineActions}>
-          <PrimaryButton label="Reset Scan" icon="refresh-cw" tone="violet" onPress={() => setScannedQr(null)} />
+          <PrimaryButton label="Reset Scan" icon="refresh-cw" tone="violet" onPress={() => { setScannedQr(null); processingRef.current = false; }} />
         </View>
         {scannedQr ? (
           <View style={styles.scanResultCard}>
-            <Text style={styles.scanResultLabel}>Scanned QR data</Text>
-            <Text style={styles.scanResultValue}>{scannedQr}</Text>
+            <Text style={styles.scanResultLabel}>Last scanned data</Text>
+            <Text style={styles.scanResultValue}>{scannedQr.length > 80 ? scannedQr.slice(0, 80) + '...' : scannedQr}</Text>
           </View>
         ) : null}
       </GlassCard>
@@ -113,7 +116,7 @@ export default function QrScannerScreen() {
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   scannerCard: { minHeight: 420 },
   permissionPanel: { flex: 1, alignItems: 'center', justifyContent: 'center', padding: 24, gap: 14 },
   permissionTitle: { color: palette.text, fontSize: 18, fontWeight: '800' },
@@ -132,5 +135,5 @@ const styles = StyleSheet.create({
   inlineActions: { flexDirection: 'row', alignItems: 'center', justifyContent: 'flex-start', gap: 10, marginTop: 14, flexWrap: 'wrap' },
   scanResultCard: { marginTop: 14, padding: 14, borderRadius: 20, backgroundColor: 'rgba(16,185,129,0.08)', borderWidth: 1, borderColor: 'rgba(16,185,129,0.16)' },
   scanResultLabel: { color: palette.muted, fontSize: 12, fontWeight: '700' },
-  scanResultValue: { color: palette.text, fontSize: 13, marginTop: 6, fontFamily: 'Courier' },
+  scanResultValue: { color: palette.text, fontSize: 13, marginTop: 6, fontFamily: Platform.select({ android: 'monospace', ios: 'Courier', default: 'monospace' }) },
 });

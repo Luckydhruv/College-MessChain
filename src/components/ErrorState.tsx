@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, StyleSheet, Pressable } from 'react-native';
 import { Feather } from '@expo/vector-icons';
-import { palette } from '../theme';
+import { useThemePalette } from '../context/ThemeContext';
 
 interface ErrorStateProps {
   title?: string;
@@ -14,6 +14,8 @@ export function ErrorState({
   message = 'Failed to load content from the server. Check network connection and retry.',
   onRetry,
 }: ErrorStateProps) {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   return (
     <View style={styles.container}>
       <View style={styles.iconWrap}>
@@ -31,7 +33,7 @@ export function ErrorState({
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   container: {
     alignItems: 'center',
     justifyContent: 'center',

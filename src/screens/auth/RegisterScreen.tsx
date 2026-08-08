@@ -3,10 +3,17 @@ import { View, Text, Pressable, StyleSheet } from 'react-native';
 import { GlassCard, PrimaryButton, SectionTitle, TextField, SkeletonBlock, ErrorState, EmptyState } from '../../components';
 import { AuthContext } from '../../context/AuthContext';
 import { getPublicMesses, PublicMess } from '../../api/public';
-import { palette } from '../../theme';
+import { useThemePalette } from '../../context/ThemeContext';
 
-export default function RegisterScreen() {
+interface RegisterScreenProps {
+  onNavigateToLogin?: () => void;
+}
+
+export default function RegisterScreen({ onNavigateToLogin }: RegisterScreenProps = {}) {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   const auth = useContext(AuthContext);
+
 
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
@@ -223,12 +230,23 @@ export default function RegisterScreen() {
           onPress={handleSubmit}
           loading={submitting}
         />
+        {onNavigateToLogin ? (
+          <Pressable
+            onPress={onNavigateToLogin}
+            style={({ pressed }) => [styles.backBtn, pressed && { opacity: 0.75 }]}
+          >
+            <Text style={styles.backBtnText}>Already have an account? Sign In</Text>
+          </Pressable>
+        ) : null}
       </View>
     </GlassCard>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
+  backBtn: { marginTop: 14, alignItems: 'center', justifyContent: 'center', paddingVertical: 10 },
+  backBtnText: { color: palette.emerald, fontSize: 13, fontWeight: '700' },
+
   errorBox: {
     padding: 12,
     borderRadius: 16,

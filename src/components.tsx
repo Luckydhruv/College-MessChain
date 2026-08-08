@@ -6,6 +6,7 @@ import React, { useEffect, useRef } from 'react';
 import {
   Animated,
   Pressable,
+  ScrollView,
   StyleSheet,
   Text,
   TextInput,
@@ -15,23 +16,30 @@ import {
 } from 'react-native';
 import Svg, { Circle, Line, Path, Rect } from 'react-native-svg';
 import { StyleProp } from 'react-native';
-import { NetworkKind, networkModes, palette } from './theme';
+import { useTheme, useThemePalette } from './context/ThemeContext';
+export { EmptyState } from './components/EmptyState';
+export { ErrorState } from './components/ErrorState';
 
 type BaseProps = { children: React.ReactNode; style?: StyleProp<ViewStyle> };
+
 
 export const copyToClipboard = async (value: string) => {
   await Clipboard.setStringAsync(value);
 };
 
 export function GlassCard({ children, style }: BaseProps) {
+  const { mode, colors } = useTheme();
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+
   return (
     <LinearGradient
-      colors={['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)']}
+      colors={mode === 'dark' ? ['rgba(255,255,255,0.08)', 'rgba(255,255,255,0.02)'] : ['rgba(140,90,60,0.08)', 'rgba(255,248,240,0.86)']}
       start={{ x: 0, y: 0 }}
       end={{ x: 1, y: 1 }}
-      style={[styles.cardOuter, style]}
+      style={[styles.cardOuter, { borderColor: colors.border, backgroundColor: mode === 'dark' ? 'rgba(24,24,27,0.72)' : colors.surface }, style]}
     >
-      <BlurView intensity={38} tint="dark" style={styles.cardBlur}>
+      <BlurView intensity={mode === 'dark' ? 38 : 24} tint={mode === 'dark' ? 'dark' : 'light'} style={styles.cardBlur}>
         <View style={styles.cardInner}>{children}</View>
       </BlurView>
     </LinearGradient>
@@ -39,16 +47,24 @@ export function GlassCard({ children, style }: BaseProps) {
 }
 
 export function SectionTitle({ eyebrow, title, subtitle }: { eyebrow: string; title: string; subtitle?: string }) {
+  const { colors } = useTheme();
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+
   return (
     <View style={styles.sectionTitle}>
-      <Text style={styles.eyebrow}>{eyebrow}</Text>
-      <Text style={styles.sectionHeading}>{title}</Text>
-      {subtitle ? <Text style={styles.sectionBody}>{subtitle}</Text> : null}
+      <Text style={[styles.eyebrow, { color: colors.secondaryText }]}>{eyebrow}</Text>
+      <Text style={[styles.sectionHeading, { color: colors.primaryText }]}>{title}</Text>
+      {subtitle ? <Text style={[styles.sectionBody, { color: colors.mutedText }]}>{subtitle}</Text> : null}
     </View>
   );
 }
 
 export function Pill({ label, tone = 'neutral', icon }: { label: string; tone?: 'neutral' | 'emerald' | 'violet' | 'amber' | 'red' | 'indigo'; icon?: keyof typeof Feather.glyphMap }) {
+  const { colors } = useTheme();
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+
   const backgroundMap = {
     neutral: 'rgba(255,255,255,0.07)',
     emerald: 'rgba(16, 185, 129, 0.16)',
@@ -59,7 +75,7 @@ export function Pill({ label, tone = 'neutral', icon }: { label: string; tone?: 
   } as const;
 
   const colorMap = {
-    neutral: palette.text,
+    neutral: colors.primaryText,
     emerald: '#6ee7b7',
     violet: '#d8b4fe',
     amber: '#fcd34d',
@@ -75,51 +91,6 @@ export function Pill({ label, tone = 'neutral', icon }: { label: string; tone?: 
   );
 }
 
-export function StatusBanner({
-  network,
-  wallet,
-  onCopyWallet,
-}: {
-  network: NetworkKind;
-  wallet: string;
-  onCopyWallet: () => void;
-}) {
-  const pulse = useRef(new Animated.Value(1)).current;
-
-  useEffect(() => {
-    const loop = Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulse, { toValue: 1.32, duration: 900, useNativeDriver: true }),
-        Animated.timing(pulse, { toValue: 1, duration: 900, useNativeDriver: true }),
-      ]),
-    );
-    loop.start();
-    return () => loop.stop();
-  }, [pulse]);
-
-  const networkMeta = networkModes[network];
-
-  return (
-    <GlassCard style={styles.statusWrap}>
-      <View style={styles.statusRow}>
-        <View style={styles.statusLane}>
-          <Animated.View style={[styles.pulseDot, { transform: [{ scale: pulse }] }]} />
-          <Text style={styles.statusLabel}>API Node: Synchronized</Text>
-        </View>
-        <Pill label={networkMeta.label} tone={network === 'polygon' ? 'emerald' : 'violet'} icon="globe" />
-      </View>
-      <View style={styles.walletRow}>
-        <Text style={styles.walletMono}>{wallet}</Text>
-        <Pressable onPress={onCopyWallet} style={({ pressed }) => [styles.copyButton, pressed && { opacity: 0.78, transform: [{ scale: 0.98 }] }]}>
-          <Feather name="copy" size={12} color={palette.text} />
-          <Text style={styles.copyButtonText}>Copy</Text>
-        </Pressable>
-      </View>
-      <Text style={styles.statusSubcopy}>{networkMeta.subcopy}</Text>
-    </GlassCard>
-  );
-}
-
 export function SegmentedControl({
   value,
   items,
@@ -129,6 +100,9 @@ export function SegmentedControl({
   items: { id: string; label: string; helper?: string }[];
   onChange: (value: string) => void;
 }) {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+
   return (
     <View style={styles.segmentWrap}>
       {items.map((item) => {
@@ -159,52 +133,106 @@ export function PrimaryButton({
   loading?: boolean;
   danger?: boolean;
 }) {
-  const colors = {
-    emerald: ['rgba(16,185,129,0.98)', 'rgba(6,95,70,0.98)'],
-    violet: ['rgba(124,58,237,0.98)', 'rgba(67,56,202,0.98)'],
-    amber: ['rgba(245,158,11,0.98)', 'rgba(217,119,6,0.98)'],
+  const { colors: themeColors } = useTheme();
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+  const gradientColors = {
+    emerald: [themeColors.accent, themeColors.secondaryAccent],
+    violet: [themeColors.secondaryText, themeColors.accent],
+    amber: [themeColors.secondaryAccent, '#D97706'],
     red: ['rgba(239,68,68,0.98)', 'rgba(190,18,60,0.98)'],
   } as const;
 
   return (
     <Pressable onPress={onPress} disabled={loading} style={({ pressed }) => [styles.buttonOuter, pressed && !loading && { transform: [{ translateY: -2 }, { scale: 0.99 }] }, danger && styles.buttonDanger]}>
-      <LinearGradient colors={colors[tone]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.buttonInner}>
-        {loading ? <Feather name="loader" size={15} color={palette.text} /> : icon ? <Feather name={icon} size={15} color={palette.text} /> : null}
-        <Text style={styles.buttonText}>{loading ? 'Processing' : label}</Text>
+      <LinearGradient colors={gradientColors[tone]} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }} style={styles.buttonInner}>
+        {loading ? <Feather name="loader" size={15} color={themeColors.buttonText} /> : icon ? <Feather name={icon} size={15} color={themeColors.buttonText} /> : null}
+        <Text style={[styles.buttonText, { color: themeColors.buttonText }]}>{loading ? 'Processing' : label}</Text>
+      </LinearGradient>
+    </Pressable>
+  );
+}
+
+/**
+ * Dedicated button for the Login screen (Sign In + Student/Staff/Admin
+ * quick-access). Unlike `PrimaryButton`, this always pulls from
+ * `theme.primaryButton` — the single brown token set defined in theme.ts —
+ * so every login button renders identically instead of drifting across
+ * different `tone` values (the bug that produced brown vs. blue-brown
+ * buttons on the same screen).
+ */
+export function LoginButton({
+  label,
+  icon,
+  onPress,
+  loading,
+}: {
+  label: string;
+  icon?: keyof typeof Feather.glyphMap;
+  onPress: () => void;
+  loading?: boolean;
+}) {
+  const { theme } = useTheme();
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+  const { primaryButton } = theme;
+
+  return (
+    <Pressable
+      onPress={onPress}
+      disabled={loading}
+      style={({ pressed }) => [styles.buttonOuter, pressed && !loading && { transform: [{ translateY: -2 }, { scale: 0.99 }] }]}
+    >
+      <LinearGradient
+        colors={[primaryButton.background, primaryButton.backgroundAlt]}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={[styles.buttonInner, { borderWidth: 1, borderColor: primaryButton.border }]}
+      >
+        {loading ? <Feather name="loader" size={15} color={primaryButton.text} /> : icon ? <Feather name={icon} size={15} color={primaryButton.text} /> : null}
+        <Text style={[styles.buttonText, { color: primaryButton.text }]}>{loading ? 'Processing' : label}</Text>
       </LinearGradient>
     </Pressable>
   );
 }
 
 export function TextField({ label, placeholder, value, onChangeText, multiline, rows = 1, secureTextEntry, keyboardType, autoCapitalize = 'none' }: { label: string; placeholder: string; value: string; onChangeText: (text: string) => void; multiline?: boolean; rows?: number; secureTextEntry?: boolean; keyboardType?: TextInputProps['keyboardType']; autoCapitalize?: TextInputProps['autoCapitalize']; }) {
+  const { colors } = useTheme();
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+
   return (
     <View style={styles.fieldWrap}>
-      <Text style={styles.fieldLabel}>{label}</Text>
+      <Text style={[styles.fieldLabel, { color: colors.secondaryText }]}>{label}</Text>
       <TextInput
         value={value}
         onChangeText={onChangeText}
         placeholder={placeholder}
-        placeholderTextColor={palette.softMuted}
+        placeholderTextColor={colors.mutedText}
         multiline={multiline}
         numberOfLines={rows}
         secureTextEntry={secureTextEntry}
         keyboardType={keyboardType}
         autoCapitalize={autoCapitalize}
         autoCorrect={false}
-        style={[styles.field, multiline && { minHeight: 24 * rows + 20, textAlignVertical: 'top' }]}
+        style={[styles.field, { backgroundColor: colors.surface, borderColor: colors.border, color: colors.primaryText }, multiline && { minHeight: 24 * rows + 20, textAlignVertical: 'top' }]}
       />
     </View>
   );
 }
 
 export function ToggleRow({ label, description, value, onChange }: { label: string; description: string; value: boolean; onChange: (value: boolean) => void }) {
+  const { colors } = useTheme();
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+
   return (
-    <Pressable onPress={() => onChange(!value)} style={styles.toggleRow}>
+    <Pressable onPress={() => onChange(!value)} style={[styles.toggleRow, { borderTopColor: colors.border }] }>
       <View style={{ flex: 1 }}>
-        <Text style={styles.toggleLabel}>{label}</Text>
-        <Text style={styles.toggleDescription}>{description}</Text>
+        <Text style={[styles.toggleLabel, { color: colors.primaryText }]}>{label}</Text>
+        <Text style={[styles.toggleDescription, { color: colors.mutedText }]}>{description}</Text>
       </View>
-      <View style={[styles.switchTrack, value && styles.switchTrackOn]}>
+      <View style={[styles.switchTrack, { backgroundColor: value ? 'rgba(0,173,181,0.28)' : 'rgba(0,0,0,0.12)' }]}>
         <View style={[styles.switchKnob, value && styles.switchKnobOn]} />
       </View>
     </Pressable>
@@ -228,6 +256,8 @@ export function SkeletonBlock({ width = '100%', height = 14, style }: { width?: 
 }
 
 export function MetricRing({ value, label, accent }: { value: number; label: string; accent: string }) {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
   const size = 108;
   const stroke = 12;
   const radius = (size - stroke) / 2;
@@ -274,6 +304,9 @@ export function LockClockIcon() {
 }
 
 export function ReceiptBadge({ label, value }: { label: string; value: string }) {
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+
   return (
     <View style={styles.receiptBadge}>
       <Text style={styles.receiptLabel}>{label}</Text>
@@ -283,15 +316,232 @@ export function ReceiptBadge({ label, value }: { label: string; value: string })
 }
 
 export function BottomTab({ icon, label, active, onPress }: { icon: keyof typeof Feather.glyphMap; label: string; active?: boolean; onPress: () => void }) {
+  const { colors, theme } = useTheme();
+  const palette = useThemePalette();
+  const styles = React.useMemo(() => createStyles(palette), [palette]);
+
   return (
-    <Pressable onPress={onPress} style={({ pressed }) => [styles.tabItem, active && styles.tabItemActive, pressed && { transform: [{ translateY: -2 }, { scale: 0.98 }] }]}>
-      <Feather name={icon} size={17} color={active ? palette.text : palette.muted} />
-      <Text style={[styles.tabText, active && styles.tabTextActive]}>{label}</Text>
+    <Pressable onPress={onPress} style={({ pressed }) => [styles.tabItem, active && styles.tabItemActive, { backgroundColor: active ? `${theme.bottomRowButton.background}24` : colors.surface, borderColor: active ? theme.bottomRowButton.background : colors.border }, pressed && { transform: [{ translateY: -2 }, { scale: 0.98 }] }]}>
+      <Feather name={icon} size={17} color={active ? theme.bottomRowButton.background : colors.mutedText} />
+      <Text style={[styles.tabText, active && styles.tabTextActive, { color: active ? colors.primaryText : colors.mutedText }]}>{label}</Text>
     </Pressable>
   );
 }
 
-const styles = StyleSheet.create({
+/**
+ * Sleek left-right toggle switch for switching between Dark Mode and Light Mode.
+ * Meant to live in the top-right header area of the app shell.
+ */
+export function ThemeToggleSwitch() {
+  const { isDark, toggleTheme, colors } = useTheme();
+  const progress = useRef(new Animated.Value(isDark ? 1 : 0)).current;
+
+  useEffect(() => {
+    Animated.spring(progress, {
+      toValue: isDark ? 1 : 0,
+      useNativeDriver: true,
+      friction: 8,
+      tension: 90,
+    }).start();
+  }, [isDark, progress]);
+
+  const knobTranslate = progress.interpolate({ inputRange: [0, 1], outputRange: [3, 27] });
+
+  return (
+    <Pressable
+      accessibilityRole="switch"
+      accessibilityState={{ checked: isDark }}
+      accessibilityLabel="Toggle dark and light mode"
+      onPress={toggleTheme}
+      hitSlop={8}
+      style={({ pressed }) => [
+        themeToggleStyles.track,
+        { backgroundColor: isDark ? 'rgba(0,173,181,0.22)' : 'rgba(140,90,60,0.18)', borderColor: colors.softBorder },
+        pressed && { opacity: 0.86 },
+      ]}
+    >
+      <View style={themeToggleStyles.iconRow}>
+        <Feather name="sun" size={11} color={isDark ? colors.mutedText : colors.accent} />
+        <Feather name="moon" size={11} color={isDark ? colors.accent : colors.mutedText} />
+      </View>
+      <Animated.View
+        style={[
+          themeToggleStyles.knob,
+          { backgroundColor: colors.accent, transform: [{ translateX: knobTranslate }] },
+        ]}
+      >
+        <Feather name={isDark ? 'moon' : 'sun'} size={12} color={colors.buttonText} />
+      </Animated.View>
+    </Pressable>
+  );
+}
+
+const themeToggleStyles = StyleSheet.create({
+  track: {
+    width: 58,
+    height: 30,
+    borderRadius: 999,
+    borderWidth: 1,
+    justifyContent: 'center',
+    paddingHorizontal: 3,
+  },
+  iconRow: {
+    position: 'absolute',
+    left: 8,
+    right: 8,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  knob: {
+    width: 24,
+    height: 24,
+    borderRadius: 999,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOpacity: 0.28,
+    shadowRadius: 4,
+    shadowOffset: { width: 0, height: 2 },
+    elevation: 4,
+  },
+});
+
+export interface FloatingNavTab {
+  id: string;
+  label: string;
+  icon: keyof typeof Feather.glyphMap;
+}
+
+/**
+ * Floating, curved, bottom navigation bar.
+ * - Floats above the bottom bezel using safe-area insets + extra bottom margin.
+ * - Never touches the left/right screen edges (horizontal margins).
+ * - Square buttons that fill with the accent color when active.
+ * - Falls back to horizontal scrolling if there are more than 5 tabs,
+ *   while individual buttons keep their fixed square footprint.
+ */
+export function FloatingBottomNav({
+  tabs,
+  activeId,
+  onChange,
+  bottomInset = 0,
+}: {
+  tabs: readonly FloatingNavTab[];
+  activeId: string;
+  onChange: (id: string) => void;
+  bottomInset?: number;
+}) {
+  const { colors, theme, isDark } = useTheme();
+  const scale = useRef(tabs.map(() => new Animated.Value(1))).current;
+
+  const animatePress = (index: number, toValue: number) => {
+    Animated.spring(scale[index] ?? new Animated.Value(1), {
+      toValue,
+      useNativeDriver: true,
+      friction: 6,
+      tension: 140,
+    }).start();
+  };
+
+  const canFit = tabs.length <= 5;
+
+  return (
+    <View pointerEvents="box-none" style={[navStyles.wrap, { bottom: 16 + bottomInset }]}>
+      <View
+        style={[
+          navStyles.container,
+          {
+            backgroundColor: isDark ? 'rgba(30,30,30,0.94)' : 'rgba(232,223,202,0.96)',
+            borderColor: colors.softBorder,
+            shadowColor: isDark ? '#000' : '#8C5A3C',
+          },
+          !canFit && { paddingHorizontal: 8 },
+        ]}
+      >
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          scrollEnabled={!canFit}
+          contentContainerStyle={[navStyles.row, canFit && navStyles.rowEven]}
+        >
+          {tabs.map((tab, index) => {
+            const active = tab.id === activeId;
+            return (
+              <Animated.View key={tab.id} style={{ transform: [{ scale: scale[index] }] }}>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityState={{ selected: active }}
+                  accessibilityLabel={tab.label}
+                  onPress={() => onChange(tab.id)}
+                  onPressIn={() => animatePress(index, 0.92)}
+                  onPressOut={() => animatePress(index, 1)}
+                  style={[
+                    navStyles.button,
+                    {
+                      backgroundColor: active ? theme.bottomRowButton.background : 'transparent',
+                      shadowColor: active ? theme.bottomRowButton.background : 'transparent',
+                      shadowOpacity: active ? 0.45 : 0,
+                    },
+                  ]}
+                >
+                  <Feather
+                    name={tab.icon}
+                    size={20}
+                    color={active ? theme.bottomRowButton.text : colors.mutedText}
+                  />
+                </Pressable>
+              </Animated.View>
+            );
+          })}
+        </ScrollView>
+      </View>
+    </View>
+  );
+}
+
+const navStyles = StyleSheet.create({
+  wrap: {
+    position: 'absolute',
+    left: 16,
+    right: 16,
+    alignItems: 'center',
+  },
+  container: {
+    width: '100%',
+    maxWidth: 460,
+    borderRadius: 22,
+    borderWidth: 1,
+    paddingHorizontal: 12,
+    paddingVertical: 11,
+    overflow: 'visible',
+    shadowOpacity: 0.3,
+    shadowRadius: 18,
+    shadowOffset: { width: 0, height: 10 },
+    elevation: 14,
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 10,
+  },
+  rowEven: {
+    width: '100%',
+    justifyContent: 'space-around',
+  },
+  button: {
+    width: 46,
+    height: 46,
+    borderRadius: 12,
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowRadius: 10,
+    shadowOffset: { width: 0, height: 4 },
+    elevation: 3,
+  },
+});
+
+const createStyles = (palette: ReturnType<typeof useThemePalette>) => StyleSheet.create({
   cardOuter: {
     borderRadius: 28,
     borderWidth: 1,
@@ -336,10 +586,10 @@ const styles = StyleSheet.create({
   segmentLabelActive: { color: palette.text },
   segmentHelper: { color: '#6b7280', fontSize: 11, marginTop: 3 },
   segmentHelperActive: { color: '#cbd5e1' },
-  buttonOuter: { borderRadius: 18, overflow: 'hidden', alignSelf: 'flex-start' },
+  buttonOuter: { borderRadius: 16, overflow: 'hidden', alignSelf: 'flex-start' },
   buttonDanger: { shadowColor: palette.red, shadowOpacity: 0.15 },
-  buttonInner: { minHeight: 48, paddingHorizontal: 16, borderRadius: 18, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 10 },
-  buttonText: { color: palette.text, fontWeight: '800', fontSize: 13.5 },
+  buttonInner: { minHeight: 42, paddingHorizontal: 14, borderRadius: 16, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8 },
+  buttonText: { color: palette.text, fontWeight: '800', fontSize: 12.5 },
   fieldWrap: { marginBottom: 12 },
   fieldLabel: { color: '#d4d4d8', fontSize: 12, marginBottom: 8, fontWeight: '700' },
   field: { backgroundColor: 'rgba(255,255,255,0.05)', borderRadius: 18, borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)', color: palette.text, paddingHorizontal: 14, paddingVertical: 12, fontSize: 14 },
@@ -357,8 +607,8 @@ const styles = StyleSheet.create({
   receiptBadge: { paddingHorizontal: 12, paddingVertical: 10, borderRadius: 16, backgroundColor: 'rgba(255,255,255,0.05)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.07)' },
   receiptLabel: { color: palette.muted, fontSize: 11, marginBottom: 4 },
   receiptValue: { color: palette.text, fontWeight: '700', fontSize: 13 },
-  tabItem: { width: 72, height: 72, borderRadius: 20, alignItems: 'center', justifyContent: 'center', gap: 5, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
-  tabItemActive: { backgroundColor: 'rgba(255,255,255,0.09)', borderColor: 'rgba(255,255,255,0.16)', transform: [{ translateY: -3 }] },
-  tabText: { color: palette.muted, fontSize: 11, fontWeight: '700' },
+  tabItem: { width: 62, height: 62, borderRadius: 18, alignItems: 'center', justifyContent: 'center', gap: 4, backgroundColor: 'rgba(255,255,255,0.03)', borderWidth: 1, borderColor: 'rgba(255,255,255,0.05)' },
+  tabItemActive: { backgroundColor: 'rgba(255,255,255,0.09)', borderColor: 'rgba(255,255,255,0.16)', transform: [{ translateY: -2 }] },
+  tabText: { color: palette.muted, fontSize: 10, fontWeight: '700' },
   tabTextActive: { color: palette.text },
 });
